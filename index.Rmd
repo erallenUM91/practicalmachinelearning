@@ -1,26 +1,112 @@
 ---
-title: "Practical Machine Learning Course Project"
+title: "Practical Machine Learning Project"
 author: "Eric Allen"
 date: "5/17/2019"
 output: html_document
 ---
 
-## R Markdown
+## Study Objective
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+The goal of the project is to predict the manner in which exercises were performed. This is the "classe" variable in the training set (A = correctly, B-E = different variations of incorrectly). In this project, we will use data from sensors on the belt, forearm, arm, and dumbbell of 6 participants.  
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+## Loading the training data
 
-```{r cars}
-summary(cars)
+```{r}
+
+file <- "pml-training.csv"
+if (!file.exists(file))
+  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",file)
+df <- read.csv("pml-training.csv")
+dim(df)
+
 ```
 
-## Including Plots
+## Cleaning the data 
 
-You can also embed plots, for example:
+Initial data exploration uncovered fields with data that did not come from the sensors (see appendix for field name listing), fields with nearly all missing values and fields with near zero variance.  These fields were removed from the data prior to training the model. 
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r}
+
+# remove non-sensor data
+dfc <- df[,c(8:160)]
+
+# testing for columns with NA
+nacnt <- colSums(is.na(dfc))
+table(nacnt) # 86 columns have no missing values where 67 have 19,216 out of 19,622 missing
+# remove fields with NA in them
+dfc <- dfc[,nacnt==0]
+
+# remove near zero variance variables
+
+library(caret)
+NZdf <- nearZeroVar(dfc,saveMetrics = TRUE)
+NZdf$rownum <- 1:nrow(NZdf)
+nzvIndex <- NZdf[NZdf$nzv==FALSE,]$rownum
+dfc <- dfc[,!NZdf$nzv]
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+## Cross-validation
+
+The training data was partitioned into a training and test data sets for cross-validation purposes.  
+
+```{r}
+# create training partitions for cross-validation
+
+set.seed(3825)
+inTrain <- createDataPartition(y=dfc$classe, p=0.75, list=FALSE)
+dftrn <- dfc[inTrain,]
+dft <- dfc[-inTrain,]
+dim(dftrn)
+dim(dft)
+```
+
+## Building the Model
+
+The model was build using Random Forest with the remaining fields and default settings. 
+
+```{r cache=TRUE}
+
+library(doMC)
+registerDoMC(cores=4)
+
+set.seed(3825)
+# modRF <- train(classe ~., method="rf",data=dftrn)
+confm <- confusionMatrix(dft$classe,predict(modRF,newdata = dft))
+
+```
+
+Cross-validation against the training partition (out of sample) shows and Accuracy of `r confm$overall[[1]]` with a confidence interval from `r confm$overall[[3]]` to `r confm$overall[[4]]`.
+
+```{r}
+confm
+```
+
+## Quiz
+
+```{r}
+# download and prep quiz data
+
+file <- "pml-testing.csv"
+if (!file.exists(file))
+  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",file)
+dftesting <- read.csv("pml-testing.csv")
+dim(dftesting)
+
+# select only the variables used
+dfval <- dftesting[,names(dftrn[,-53])]
+dim(dfval)
+
+quiz <- predict(modRF,dfval)
+answers <- as.data.frame(quiz)
+
+```
+
+## References
+More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Appendix
+```{r}
+names(df)
+```
+
