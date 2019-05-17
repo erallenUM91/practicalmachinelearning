@@ -71,7 +71,7 @@ library(doMC)
 registerDoMC(cores=4)
 
 set.seed(3825)
-# modRF <- train(classe ~., method="rf",data=dftrn)
+modRF <- train(classe ~., method="rf",data=dftrn)
 confm <- confusionMatrix(dft$classe,predict(modRF,newdata = dft))
 
 ```
