@@ -46,12 +46,12 @@ dfc <- dfc[,!NZdf$nzv]
 
 ```
 
-## Cross-validation
+## Partition the data for validation 
 
-The training data was partitioned into a training and test data sets for cross-validation purposes.  
+The training data was partitioned into a training and test data sets for validation purposes.  
 
 ```{r}
-# create training partitions for cross-validation
+# create training partitions for validation
 
 set.seed(3825)
 inTrain <- createDataPartition(y=dfc$classe, p=0.75, list=FALSE)
@@ -63,20 +63,30 @@ dim(dft)
 
 ## Building the Model
 
-The model was build using Random Forest with the remaining fields and default settings. 
+The model was built using Random Forest with cross validation. 
 
 ```{r cache=TRUE}
 
 library(doMC)
-registerDoMC(cores=4)
+registerDoMC(cores=3)
 
 set.seed(3825)
-modRF <- train(classe ~., method="rf",data=dftrn)
-confm <- confusionMatrix(dft$classe,predict(modRF,newdata = dft))
+
+control <- trainControl(method="cv", number=10, allowParallel = TRUE)
+modRF <- train(classe ~ ., method = "rf", data = dftrn, trControl=control)
+plot(modRF,main="Accuracy by Predictor Count")
+cvconfm <- confusionMatrix.train(modRF)
+cvconfm
 
 ```
 
-Cross-validation against the training partition (out of sample) shows and Accuracy of `r confm$overall[[1]]` with a confidence interval from `r confm$overall[[3]]` to `r confm$overall[[4]]`.
+10-fold cross-validation shows that `r modRF$results[modRF$results[2]==max(modRF$results[2]),][[1]]` randomly selected predicors produces the highest accuracy of `r modRF$results[modRF$results[2]==max(modRF$results[2]),][[2]]` with an accuracy SD of `r modRF$results[modRF$results[2]==max(modRF$results[2]),][[4]]`. The mean estimated out of sample Accuracy is `r sum(diag(cvconfm$table))/100`. 
+
+```{r}
+confm <- confusionMatrix(dft$classe,predict(modRF,newdata = dft))
+```
+
+Using the model to predict test partition shows and Accuracy of `r confm$overall[[1]]` with a confidence interval from `r confm$overall[[3]]` to `r confm$overall[[4]]`.
 
 ```{r}
 confm
